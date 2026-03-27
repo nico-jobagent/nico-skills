@@ -106,18 +106,43 @@ done
 echo ""
 echo "Environment Configuration"
 echo "========================="
-echo ""
-echo "Set these environment variables for your agent:"
-echo ""
-echo "  export NICO_API_KEY=\"$api_key\""
-echo "  export NICO_API_URL=\"$api_url\""
-echo ""
-echo "Add them to your shell profile (~/.bashrc, ~/.zshrc) or configure"
-echo "them in your agent's settings:"
-echo ""
-echo "  Claude Code:  Add to settings.json env section"
-echo "  OpenClaw:     Add to ~/.openclaw/openclaw.json skills.entries"
-echo "  Cursor:       Add to workspace environment"
-echo "  Copilot:      Add to shell profile"
+
+# Detect shell profile
+if [ -f "$HOME/.zshrc" ]; then
+    shell_profile="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+    shell_profile="$HOME/.bashrc"
+elif [ -f "$HOME/.bash_profile" ]; then
+    shell_profile="$HOME/.bash_profile"
+else
+    shell_profile=""
+fi
+
+if [ -n "$shell_profile" ]; then
+    echo ""
+    read -rp "Add NICO_API_KEY and NICO_API_URL to $shell_profile? [Y/n] " yn
+    if [[ "$yn" != "n" && "$yn" != "N" ]]; then
+        # Remove existing entries to avoid duplicates
+        if grep -q "^export NICO_API_KEY=" "$shell_profile" 2>/dev/null; then
+            sed -i.bak '/^export NICO_API_KEY=/d' "$shell_profile"
+            sed -i.bak '/^export NICO_API_URL=/d' "$shell_profile"
+            rm -f "${shell_profile}.bak"
+        fi
+        echo "" >> "$shell_profile"
+        echo "# Nico Job Agent" >> "$shell_profile"
+        echo "export NICO_API_KEY=\"$api_key\"" >> "$shell_profile"
+        echo "export NICO_API_URL=\"$api_url\"" >> "$shell_profile"
+        echo "  Added to $shell_profile"
+        echo ""
+        echo "  Run 'source $shell_profile' or open a new terminal to activate."
+    fi
+else
+    echo ""
+    echo "  Could not detect shell profile. Add these to your shell config manually:"
+    echo ""
+    echo "    export NICO_API_KEY=\"$api_key\""
+    echo "    export NICO_API_URL=\"$api_url\""
+fi
+
 echo ""
 echo "Setup complete!"
