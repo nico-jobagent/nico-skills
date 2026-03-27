@@ -28,9 +28,15 @@ chmod +x setup.sh
 
 The setup script will:
 1. Check that python3 is available
-2. Prompt for your API credentials
-3. Detect installed AI agents
+2. Prompt for your API credentials (`NICO_API_KEY`, `NICO_API_URL`)
+3. Detect installed AI agents (Claude Code, OpenClaw, Cursor, GitHub Copilot)
 4. Symlink the skill into each agent's skill directory
+5. Write the env vars to your shell profile (`~/.zshrc` or `~/.bashrc`)
+
+After setup, reload your shell config:
+```bash
+source ~/.zshrc  # or ~/.bashrc
+```
 
 ## Manual Installation
 
