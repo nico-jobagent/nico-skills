@@ -4,7 +4,7 @@ AI agent skill for adding job postings as proposed jobs to [Nico Job Agent](http
 
 ## Compatible Agents
 
-Works with any agent that supports the [AgentSkills](https://agentskills.org) standard:
+Works with any agent that supports skills via `SKILL.md`:
 
 - **Claude Code** (Anthropic)
 - **OpenClaw**
