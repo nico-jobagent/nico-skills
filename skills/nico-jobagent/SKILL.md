@@ -1,16 +1,15 @@
 ---
-name: nico-job-search
-description: Search job boards for postings and add them as proposed jobs to Nico Job Agent
+name: nico-jobagent
+description: Add job postings as proposed jobs to Nico Job Agent
 user-invocable: true
 ---
 
 ## Overview
 
 This skill integrates with the Nico Job Agent API to:
-1. Search configured job boards for job postings
-2. Check if jobs already exist in Nico (by URL or company name)
-3. Parse job posting URLs to extract details
-4. Create new proposed jobs for review
+1. Check if jobs already exist in Nico (by URL or company name)
+2. Parse job posting URLs to extract details
+3. Create new proposed jobs for review
 
 ## Configuration
 
@@ -91,10 +90,10 @@ User: "Find me senior backend engineering jobs in Berlin"
 2. For each job found:
    ```bash
    # Check if already in Nico
-   python3 scripts/nico_client.py search --url "https://example.com/jobs/senior-backend"
+   python3 scripts/nico_client.py search --url "https://careers.company.com/jobs/123"
 
    # If not found, parse the URL
-   python3 scripts/nico_client.py parse-url --url "https://example.com/jobs/senior-backend"
+   python3 scripts/nico_client.py parse-url --url "https://careers.company/jobs/123"
 
    # Create the job with parsed data
    python3 scripts/nico_client.py create \

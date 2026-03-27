@@ -1,6 +1,6 @@
 # Nico Job Agent Skills
 
-AI agent skill for searching job boards and managing job applications via the [Nico Job Agent](https://github.com/nico-jobagent) API.
+AI agent skill for adding job postings as proposed jobs to [Nico Job Agent](https://github.com/nico-jobagent) via its API.
 
 ## Compatible Agents
 
@@ -43,13 +43,13 @@ claude --plugin-dir /path/to/nico-skills
 
 **Option B — User skill**:
 ```bash
-ln -s /path/to/nico-skills/skills/nico-job-search ~/.claude/skills/nico-job-search
+ln -s /path/to/nico-skills/skills/nico-jobagent ~/.claude/skills/nico-jobagent
 ```
 
 ### OpenClaw
 
 ```bash
-ln -s /path/to/nico-skills/skills/nico-job-search ~/.openclaw/skills/nico-job-search
+ln -s /path/to/nico-skills/skills/nico-jobagent ~/.openclaw/skills/nico-jobagent
 ```
 
 Or configure in `~/.openclaw/openclaw.json`:
@@ -69,25 +69,25 @@ Or configure in `~/.openclaw/openclaw.json`:
 
 **Option B — User skill**:
 ```bash
-ln -s /path/to/nico-skills/skills/nico-job-search ~/.cursor/skills/nico-job-search
+ln -s /path/to/nico-skills/skills/nico-jobagent ~/.cursor/skills/nico-jobagent
 ```
 
 ### GitHub Copilot
 
 ```bash
-ln -s /path/to/nico-skills/skills/nico-job-search ~/.copilot/skills/nico-job-search
+ln -s /path/to/nico-skills/skills/nico-jobagent ~/.copilot/skills/nico-jobagent
 ```
 
 Or copy into your repo:
 ```bash
-cp -r /path/to/nico-skills/skills/nico-job-search .github/skills/nico-job-search
+cp -r /path/to/nico-skills/skills/nico-jobagent .github/skills/nico-jobagent
 ```
 
 ### Any Other Agent
 
 Point your agent at:
-- **Instructions**: `skills/nico-job-search/SKILL.md`
-- **CLI tool**: `skills/nico-job-search/scripts/nico_client.py`
+- **Instructions**: `skills/nico-jobagent/SKILL.md`
+- **CLI tool**: `skills/nico-jobagent/scripts/nico_client.py`
 
 ## Configuration
 

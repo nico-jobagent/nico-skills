@@ -15,7 +15,7 @@ echo "python3 found: $(python3 --version)"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$SCRIPT_DIR/skills/nico-job-search"
+SKILL_DIR="$SCRIPT_DIR/skills/nico-jobagent"
 
 # Prompt for API key
 echo ""
@@ -65,11 +65,11 @@ install_skill() {
     local agent_name="$2"
 
     mkdir -p "$target_dir"
-    if [ -L "$target_dir/nico-job-search" ] || [ -d "$target_dir/nico-job-search" ]; then
-        echo "  Skill already exists at $target_dir/nico-job-search — skipping."
+    if [ -L "$target_dir/nico-jobagent" ] || [ -d "$target_dir/nico-jobagent" ]; then
+        echo "  Skill already exists at $target_dir/nico-jobagent — skipping."
     else
-        ln -s "$SKILL_DIR" "$target_dir/nico-job-search"
-        echo "  Installed for $agent_name: $target_dir/nico-job-search -> $SKILL_DIR"
+        ln -s "$SKILL_DIR" "$target_dir/nico-jobagent"
+        echo "  Installed for $agent_name: $target_dir/nico-jobagent -> $SKILL_DIR"
     fi
 }
 
