@@ -1,0 +1,10 @@
+{
+  "name": "nico-jobagent",
+  "description": "Search job boards and manage job applications via the Nico Job Agent API",
+  "version": "0.1.0",
+  "author": {
+    "name": "nico-jobagent"
+  },
+  "repository": "https://github.com/nico-jobagent/nico-skills",
+  "license": "MIT"
+}
