@@ -136,6 +136,8 @@ def cmd_create(args):
         job_data["job_application"]["location"] = args.location
     if args.work_mode:
         job_data["job_application"]["work_mode"] = args.work_mode
+    if args.employment_type:
+        job_data["job_application"]["employment_type"] = args.employment_type
 
     result = make_request(
         "POST",
@@ -186,7 +188,8 @@ Examples:
 
   # Create a new proposed job
   %(prog)s create --title "Software Engineer" --company "Acme Inc" \\
-      --url "https://company.com/jobs/123" --location "Berlin" --work-mode "remote"
+      --url "https://company.com/jobs/123" --location "Berlin" \\
+      --work-mode "remote" --employment_type "full-time"
 
   # List all proposed jobs
   %(prog)s list --status draft
