@@ -189,7 +189,7 @@ Examples:
   # Create a new proposed job
   %(prog)s create --title "Software Engineer" --company "Acme Inc" \\
       --url "https://company.com/jobs/123" --location "Berlin" \\
-      --work-mode "remote" --employment_type "full-time"
+      --work-mode "remote" --employment-type "full-time"
 
   # List all proposed jobs
   %(prog)s list --status draft
@@ -218,6 +218,8 @@ Examples:
     create_parser.add_argument("--location", help="Job location")
     create_parser.add_argument("--work-mode", choices=["remote", "remote-optional", "hybrid", "on-site"],
                                help="Work mode (default: hybrid)")
+    create_parser.add_argument("--employment-type", choices=["full-time", "part-time", "contract", "internship", "temporary"],
+                               help="Employment type")
     create_parser.set_defaults(func=cmd_create)
 
     # list command
