@@ -7,7 +7,7 @@ Used by AI agents to search for and create job applications.
 
 Environment variables:
     NICO_API_KEY: API key for authentication (required)
-    NICO_API_URL: Base URL (default: https://staging.nico-jobagent.com)
+    NICO_API_URL: Base URL (default: https://api.nico-jobagent.com)
 """
 
 import argparse
@@ -26,7 +26,7 @@ def get_config():
         print("Error: NICO_API_KEY environment variable is required", file=sys.stderr)
         sys.exit(1)
 
-    api_url = os.environ.get("NICO_API_URL", "https://staging.nico-jobagent.com")
+    api_url = os.environ.get("NICO_API_URL", "https://api.nico-jobagent.com")
     return api_key, api_url
 
 

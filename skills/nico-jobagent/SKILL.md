@@ -15,7 +15,7 @@ This skill integrates with the Nico Job Agent API to:
 
 Set these environment variables:
 - `NICO_API_KEY`: Your Nico API key (required)
-- `NICO_API_URL`: Nico API base URL (default: `https://staging.nico-jobagent.com`)
+- `NICO_API_URL`: Nico API base URL (default: `https://api.nico-jobagent.com`)
 
 ## Workflow
 
@@ -103,7 +103,6 @@ User: "Find me senior backend engineering jobs in Berlin"
      --location "Berlin, Germany" \
      --work-mode "hybrid"
    ```
-3. Report: "Added 5 new proposed jobs to Nico"
 
 ## Notes
 
