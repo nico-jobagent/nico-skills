@@ -110,6 +110,16 @@ Add to your shell profile or agent's environment settings.
 
 The skill uses `scripts/nico_client.py`, a zero-dependency Python CLI:
 
+### Search Nico's global job index (discover openings)
+
+```bash
+python3 scripts/nico_client.py search-postings \
+  --title "backend engineer" --country US --region California --work-mode remote
+```
+
+Accepts employer/city **names** (resolved for you) — exact parity with Nico's MCP
+`search_job_postings` tool. `--country` is required. Requires job search enabled for the account.
+
 ### Parse a job URL
 
 ```bash

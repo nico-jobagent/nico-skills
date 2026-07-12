@@ -30,8 +30,15 @@ def get_config():
     return api_key, api_url
 
 
-def make_request(method, endpoint, api_key, api_url, params=None, data=None):
-    """Make an authenticated request to the Nico API."""
+def make_request(method, endpoint, api_key, api_url, params=None, data=None, on_error="exit"):
+    """Make an authenticated request to the Nico API.
+
+    on_error="exit" (default): print the error and exit(1) — the behavior the
+    existing commands rely on. on_error="return": return
+    {"_error": {"code", "body"}} instead so the caller can translate it into a
+    structured result (used by search-postings to mirror the MCP tool's
+    {"error": ...} response shape).
+    """
     # Build URL
     url = api_url.rstrip("/") + "/" + endpoint.lstrip("/")
 
@@ -62,9 +69,13 @@ def make_request(method, endpoint, api_key, api_url, params=None, data=None):
             error_body = json.loads(e.read().decode("utf-8"))
         except:
             pass
+        if on_error == "return":
+            return {"_error": {"code": e.code, "body": error_body}}
         print(f"API Error ({e.code}): {error_body}", file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as e:
+        if on_error == "return":
+            return {"_error": {"code": None, "body": {"error": f"Request failed: {e.reason}"}}}
         print(f"Request failed: {e.reason}", file=sys.stderr)
         sys.exit(1)
 
@@ -150,6 +161,159 @@ def cmd_create(args):
     print(json.dumps(result, indent=2))
 
 
+# ---------------------------------------------------------------------------
+# search-postings — exact parity with the MCP `search_job_postings` tool.
+#
+# The MCP tool accepts employer/city NAMES and resolves them server-side; the
+# REST API (`GET /api/job_postings`) takes pre-resolved employer_ids /
+# location_id. To keep the backend API unchanged while exposing the same
+# name-based interface to agents, this command does the resolution itself via
+# existing read endpoints, then remaps the REST list rows into the MCP tool's
+# exact output shape. Resolution rules (exactly-one-match, region-required for
+# US/CA, radius/limit clamps) mirror the tool so behavior and error messages
+# match.
+# ---------------------------------------------------------------------------
+
+def _fail_json(message, code=1):
+    """Emit the MCP tool's {"error": ...} shape and exit non-zero."""
+    print(json.dumps({"error": message}, indent=2))
+    sys.exit(code)
+
+
+def _unwrap_or_fail(resp):
+    """Translate a returned HTTP error (on_error='return') into {"error": ...}."""
+    if isinstance(resp, dict) and resp.get("_error"):
+        err = resp["_error"]
+        body = err.get("body") or {}
+        _fail_json(body.get("error") or f"HTTP {err.get('code')}", code=3)
+    return resp
+
+
+def resolve_employer_ids(names, api_key, api_url):
+    """Map employer names -> external_ids. Each name must match exactly one
+    live employer (case-insensitive), else error — mirrors the MCP tool."""
+    resp = _unwrap_or_fail(
+        make_request("GET", "/api/employers/single_page_minimal", api_key, api_url, on_error="return")
+    )
+    employers = resp.get("employers", [])
+    ids = []
+    for raw in names:
+        name = raw.strip()
+        if not name:
+            continue
+        matches = [e for e in employers if (e.get("name") or "").strip().lower() == name.lower()]
+        if not matches:
+            _fail_json(f"Unknown employer: {name}")
+        if len(matches) > 1:
+            _fail_json(f"Ambiguous employer: multiple matches for {name} — please refine")
+        ids.append(matches[0]["id"])
+    return ids
+
+
+def resolve_location_id(city, region, country, api_key, api_url):
+    """Resolve a city name -> geocoded location external_id via the locations
+    autocomplete, filtered to an exact (city, region?, country) match."""
+    country = (country or "").strip().upper()
+    region_val = (region or "").strip()
+    if country in ("US", "CA") and not region_val:
+        _fail_json(f"region (state/province) is required for city search in {country}")
+
+    resp = _unwrap_or_fail(
+        make_request("GET", "/api/locations/search", api_key, api_url,
+                     params={"q": city.strip()}, on_error="return")
+    )
+    cands = [
+        loc for loc in resp.get("locations", [])
+        if loc.get("type") == "city"
+        and (loc.get("city") or "").strip().lower() == city.strip().lower()
+        and (loc.get("country_code") or "").upper() == country
+        and (not region_val or (loc.get("region") or "").strip().lower() == region_val.lower())
+    ]
+    if not cands:
+        _fail_json(f"Location not found: {city}")
+    if len(cands) > 1:
+        _fail_json(f"Ambiguous location: multiple matches for {city} — please refine")
+    return cands[0]["id"]
+
+
+def clamp_radius(raw):
+    """Clamp into [1, 250] km (matches the MCP tool's MAX_RADIUS_KM)."""
+    return max(1, min(int(raw), 250))
+
+
+def resolve_limit(raw):
+    """Default 20, max 100 (matches the MCP tool)."""
+    requested = int(raw or 0)
+    if requested <= 0:
+        requested = 20
+    return min(requested, 100)
+
+
+def remap_posting(posting):
+    """Reshape a REST /api/job_postings list row into the MCP tool's output."""
+    employer = posting.get("employer") or {}
+    return {
+        "id": posting.get("external_id"),
+        "title": posting.get("title"),
+        "company_name": employer.get("name"),
+        "company_id": employer.get("id"),
+        "location": posting.get("location"),
+        "work_mode": posting.get("work_mode"),
+        "employment_type": posting.get("employment_type"),
+        "salary_min": posting.get("salary_min"),
+        "salary_max": posting.get("salary_max"),
+        "salary_currency": posting.get("salary_currency"),
+        "salary_period": posting.get("salary_period"),
+        "posted_at": posting.get("posted_at"),
+        "effective_posted_at": posting.get("effective_posted_at"),
+        "url": posting.get("url"),
+    }
+
+
+def cmd_search_postings(args):
+    """Search Nico's global job postings index (agent job discovery)."""
+    api_key, api_url = get_config()
+
+    # country_code is required — surfaced as the MCP tool's {"error": ...}
+    # rather than an argparse usage error.
+    if not (args.country or "").strip():
+        _fail_json("country_code is required", code=2)
+    country = args.country.strip().upper()
+
+    params = {}
+    if args.title:
+        # The REST endpoint OR-splits on " OR "; joining the repeated --title
+        # values reconstructs the MCP tool's title[] array semantics.
+        terms = [t.strip() for t in args.title if t.strip()]
+        if terms:
+            params["title"] = " OR ".join(terms)
+    if args.employers:
+        ids = resolve_employer_ids(args.employers, api_key, api_url)
+        if ids:
+            params["employer_ids"] = ",".join(ids)
+    if args.work_mode:
+        params["work_mode"] = ",".join(args.work_mode)
+
+    if (args.city or "").strip():
+        # Location wins over country/region in JobPostings::Search, so — like
+        # the MCP tool — we send location_id (+ radius) instead of country.
+        params["location_id"] = resolve_location_id(args.city, args.region, country, api_key, api_url)
+        if args.radius_km:
+            params["radius_km"] = clamp_radius(args.radius_km)
+    else:
+        params["country_code"] = country
+        if (args.region or "").strip():
+            params["region"] = args.region.strip()
+
+    params["per_page"] = resolve_limit(args.limit)
+
+    resp = _unwrap_or_fail(
+        make_request("GET", "/api/job_postings", api_key, api_url, params=params, on_error="return")
+    )
+    postings = [remap_posting(p) for p in resp.get("job_postings", [])]
+    print(json.dumps({"job_postings": postings, "count": len(postings)}, indent=2))
+
+
 def cmd_list(args):
     """List job applications."""
     api_key, api_url = get_config()
@@ -177,6 +341,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Discover openings in Nico's global index (start here for job search)
+  %(prog)s search-postings --title "backend engineer" --country US --region California
+  %(prog)s search-postings --employers "Anthropic" --country US --work-mode remote
+  %(prog)s search-postings --city "Berlin" --country DE --radius-km 25 --title designer
+
   # Parse a job URL to extract details
   %(prog)s parse-url --url "https://company.com/jobs/123"
 
@@ -221,6 +390,27 @@ Examples:
     create_parser.add_argument("--employment-type", choices=["full-time", "part-time", "contract", "internship", "temporary"],
                                help="Employment type")
     create_parser.set_defaults(func=cmd_create)
+
+    # search-postings command (global job index — exact parity with the MCP
+    # `search_job_postings` tool)
+    sp = subparsers.add_parser(
+        "search-postings",
+        help="Search Nico's global job postings index to discover openings"
+    )
+    sp.add_argument("--title", action="append", metavar="PHRASE",
+                    help="Title phrase, case-insensitive substring; repeat to OR several "
+                         "(e.g. --title 'backend engineer' --title 'staff engineer')")
+    sp.add_argument("--employers", action="append", metavar="NAME",
+                    help="Employer name; repeat for several. Each must resolve to exactly one employer.")
+    sp.add_argument("--country", metavar="CC",
+                    help="ISO 3166-1 alpha-2 country code (required). e.g. US, NL, FR")
+    sp.add_argument("--region", help="State/province name. Required with --city when --country is US or CA.")
+    sp.add_argument("--city", help="City for radius search (resolved against Nico's geocoded index).")
+    sp.add_argument("--radius-km", type=int, help="Radius in km around --city (default 25, max 250).")
+    sp.add_argument("--work-mode", action="append", choices=["remote", "onsite"],
+                    help="Filter by work mode; repeat for several (remote, onsite).")
+    sp.add_argument("--limit", type=int, default=20, help="Max results (default 20, max 100).")
+    sp.set_defaults(func=cmd_search_postings)
 
     # list command
     list_parser = subparsers.add_parser("list", help="List job applications")
