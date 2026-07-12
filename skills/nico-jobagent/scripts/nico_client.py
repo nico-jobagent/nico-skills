@@ -258,7 +258,9 @@ def remap_posting(posting):
     """Reshape a REST /api/job_postings list row into the MCP tool's output."""
     employer = posting.get("employer") or {}
     return {
-        "id": posting.get("external_id"),
+        # The API serializes a posting's external_id under the key "id" (see
+        # HasExternalId); there is no "external_id" key in the response.
+        "id": posting.get("id"),
         "title": posting.get("title"),
         "company_name": employer.get("name"),
         "company_id": employer.get("id"),
@@ -319,6 +321,25 @@ def cmd_search_postings(args):
     print(json.dumps({"job_postings": postings, "count": len(postings)}, indent=2))
 
 
+def cmd_get_posting(args):
+    """Fetch one posting's full detail from Nico's index by its id (external_id)."""
+    api_key, api_url = get_config()
+    posting_id = (args.id or "").strip()
+    if not posting_id:
+        _fail_json("id is required", code=2)
+
+    resp = _unwrap_or_fail(
+        make_request("GET", "/api/job_postings/" + urllib.parse.quote(posting_id, safe=""),
+                     api_key, api_url, on_error="return")
+    )
+    # Same summary shape as search-postings, plus the detail-only fields.
+    out = remap_posting(resp)
+    out["description"] = resp.get("description")
+    out["source_attribution"] = resp.get("source_attribution")
+    out["source_provides_date"] = resp.get("source_provides_date")
+    print(json.dumps(out, indent=2))
+
+
 def cmd_list(args):
     """List job applications."""
     api_key, api_url = get_config()
@@ -350,6 +371,9 @@ Examples:
   %(prog)s search-postings --title "backend engineer" --country US --region California
   %(prog)s search-postings --employers "Anthropic" --country US --work-mode remote
   %(prog)s search-postings --city "Berlin" --country DE --radius-km 25 --title designer
+
+  # Fetch one posting's full detail (description, etc.) by its id
+  %(prog)s get-posting --id 019e5132-627d-799e-963e-3c24f72a9dd5
 
   # Parse a job URL to extract details
   %(prog)s parse-url --url "https://company.com/jobs/123"
@@ -416,6 +440,14 @@ Examples:
                     help="Filter by work mode; repeat for several (remote, onsite).")
     sp.add_argument("--limit", type=int, default=20, help="Max results (default 20, max 100).")
     sp.set_defaults(func=cmd_search_postings)
+
+    # get-posting command (full detail for one posting by id)
+    gp = subparsers.add_parser(
+        "get-posting",
+        help="Fetch one posting's full detail (incl. description) by its id"
+    )
+    gp.add_argument("--id", required=True, help="Posting id (the `id` from search-postings results)")
+    gp.set_defaults(func=cmd_get_posting)
 
     # list command
     list_parser = subparsers.add_parser("list", help="List job applications")

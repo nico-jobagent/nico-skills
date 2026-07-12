@@ -24,8 +24,10 @@ When searching for jobs, **search Nico's own index first** — it already contai
 hundreds of thousands of postings ingested from employers' ATSes, deduplicated and
 kept fresh. Only fall back to external job boards for gaps.
 
-1. **Search Nico's index** for matching positions:
-   `python3 scripts/nico_client.py search-postings --title "<phrase>" --country <CC> [--region <name>] [--city <name>] [--work-mode remote]`
+1. **Search Nico's index** for matching positions — pick a geographic filter
+   (`--region`/`--city`) for on-site roles, OR `--work-mode remote` for remote roles,
+   but not both together (see caveat below):
+   `python3 scripts/nico_client.py search-postings --title "<phrase>" --country <CC> [--region <name> | --city <name> | --work-mode remote]`
    Each result already carries `url`, `company_name`, `location`, `work_mode`, salary, and dates.
 2. **(Optional) Fill gaps from external job boards** for roles not yet in Nico.
 3. **For each job URL you want to add as a proposal:**
@@ -74,6 +76,11 @@ Options:
 - `--radius-km N` — radius around `--city` (default 25, max 250)
 - `--work-mode {remote,onsite}` — repeat for several
 - `--limit N` — max results (default 20, max 100)
+
+> **Don't combine `--region`/`--city` with `--work-mode remote`.** Remote postings
+> aren't pinned to a location, so a geographic filter + `remote` almost always returns
+> zero. Search remote roles by country only (optionally `--work-mode remote`), and use
+> `--region`/`--city` for on-site/hybrid roles.
 
 Errors are returned as `{"error": "..."}` (e.g. unknown/ambiguous employer, unknown
 location, `country_code is required`, or job search not enabled for the account).

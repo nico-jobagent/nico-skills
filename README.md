@@ -132,8 +132,12 @@ print JSON to stdout. Run `python3 scripts/nico_client.py --help` for the full c
 ### Search Nico's global job index (discover openings)
 
 ```bash
-python3 scripts/nico_client.py search-postings \
-  --title "backend engineer" --country US --region California --work-mode remote
+# In a specific state
+python3 scripts/nico_client.py search-postings --title "backend engineer" --country US --region California
+
+# Remote roles (don't pair --region with --work-mode remote — remote postings
+# aren't pinned to a state, so that combination returns nothing)
+python3 scripts/nico_client.py search-postings --title "backend engineer" --country US --work-mode remote
 ```
 
 Accepts employer/city **names** (resolved for you) — exact parity with Nico's MCP
