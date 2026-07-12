@@ -1,6 +1,6 @@
 # Nico Job Agent Skills
 
-AI agent skill for adding job postings as proposed jobs to [Nico Job Agent](https://github.com/nico-jobagent) via its API.
+AI agent skill for adding job postings as proposed jobs to [Nico Job Agent](https://nico-jobagent.com) via its API.
 
 ## Compatible Agents
 
