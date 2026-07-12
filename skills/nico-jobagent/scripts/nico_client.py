@@ -41,8 +41,8 @@ def make_request(method, endpoint, api_key, api_url, params=None, data=None, on_
     on_error="exit" (default): print the error and exit(1) — the behavior the
     existing commands rely on. on_error="return": return
     {"_error": {"code", "body"}} instead so the caller can translate it into a
-    structured result (used by search-postings to mirror the MCP tool's
-    {"error": ...} response shape).
+    structured result (used by posting search to render its own
+    {"error": ...} output).
     """
     # Build URL
     url = api_url.rstrip("/") + "/" + endpoint.lstrip("/")
@@ -85,7 +85,7 @@ def make_request(method, endpoint, api_key, api_url, params=None, data=None, on_
         sys.exit(1)
 
 
-def cmd_parse_url(args):
+def cmd_application_parse_url(args):
     """Parse a job posting URL to extract details."""
     api_key, api_url = get_config()
 
@@ -100,7 +100,7 @@ def cmd_parse_url(args):
     print(json.dumps(result, indent=2))
 
 
-def cmd_search(args):
+def cmd_application_search(args):
     """Search for existing job applications."""
     api_key, api_url = get_config()
 
@@ -135,7 +135,7 @@ def cmd_search(args):
         print(json.dumps(result, indent=2))
 
 
-def cmd_create(args):
+def cmd_application_create(args):
     """Create a new proposed job application."""
     api_key, api_url = get_config()
 
@@ -167,20 +167,17 @@ def cmd_create(args):
 
 
 # ---------------------------------------------------------------------------
-# search-postings — exact parity with the MCP `search_job_postings` tool.
+# posting search — search Nico's job index.
 #
-# The MCP tool accepts employer/city NAMES and resolves them server-side; the
-# REST API (`GET /api/job_postings`) takes pre-resolved employer_ids /
-# location_id. To keep the backend API unchanged while exposing the same
-# name-based interface to agents, this command does the resolution itself via
-# existing read endpoints, then remaps the REST list rows into the MCP tool's
-# exact output shape. Resolution rules (exactly-one-match, region-required for
-# US/CA, radius/limit clamps) mirror the tool so behavior and error messages
-# match.
+# You pass employer and city NAMES; this command resolves them to the ids the
+# search API expects (looking up employers and geocoded locations), then
+# returns the matching postings. An employer or city name must match exactly
+# one record, or you get an error asking you to refine it. A city search needs
+# a country (and a region/state for US or Canada).
 # ---------------------------------------------------------------------------
 
 def _fail_json(message, code=1):
-    """Emit the MCP tool's {"error": ...} shape and exit non-zero."""
+    """Print an {"error": ...} result and exit with a non-zero status."""
     print(json.dumps({"error": message}, indent=2))
     sys.exit(code)
 
@@ -195,8 +192,8 @@ def _unwrap_or_fail(resp):
 
 
 def resolve_employer_ids(names, api_key, api_url):
-    """Map employer names -> external_ids. Each name must match exactly one
-    live employer (case-insensitive), else error — mirrors the MCP tool."""
+    """Map employer names -> ids. Each name must match exactly one live
+    employer (case-insensitive), else error."""
     resp = _unwrap_or_fail(
         make_request("GET", "/api/employers/single_page_minimal", api_key, api_url, on_error="return")
     )
@@ -242,12 +239,12 @@ def resolve_location_id(city, region, country, api_key, api_url):
 
 
 def clamp_radius(raw):
-    """Clamp into [1, 250] km (matches the MCP tool's MAX_RADIUS_KM)."""
+    """Clamp into [1, 250] km."""
     return max(1, min(int(raw), 250))
 
 
 def resolve_limit(raw):
-    """Default 20, max 100 (matches the MCP tool)."""
+    """Default 20, max 100."""
     requested = int(raw or 0)
     if requested <= 0:
         requested = 20
@@ -255,11 +252,10 @@ def resolve_limit(raw):
 
 
 def remap_posting(posting):
-    """Reshape a REST /api/job_postings list row into the MCP tool's output."""
+    """Normalize a search result row into this client's output shape."""
     employer = posting.get("employer") or {}
     return {
-        # The API serializes a posting's external_id under the key "id" (see
-        # HasExternalId); there is no "external_id" key in the response.
+        # The API returns a posting's identifier under the key "id".
         "id": posting.get("id"),
         "title": posting.get("title"),
         "company_name": employer.get("name"),
@@ -273,24 +269,23 @@ def remap_posting(posting):
         "salary_period": posting.get("salary_period"),
         "posted_at": posting.get("posted_at"),
         "effective_posted_at": posting.get("effective_posted_at"),
-        "url": posting.get("url"),
     }
 
 
-def cmd_search_postings(args):
-    """Search Nico's global job postings index (agent job discovery)."""
+def cmd_posting_search(args):
+    """Search Nico's job postings index (agent job discovery)."""
     api_key, api_url = get_config()
 
-    # country_code is required — surfaced as the MCP tool's {"error": ...}
-    # rather than an argparse usage error.
+    # country_code is required — surfaced as an {"error": ...} result rather
+    # than an argparse usage error.
     if not (args.country or "").strip():
         _fail_json("country_code is required", code=2)
     country = args.country.strip().upper()
 
     params = {}
     if args.title:
-        # The REST endpoint OR-splits on " OR "; joining the repeated --title
-        # values reconstructs the MCP tool's title[] array semantics.
+        # The search API ORs title phrases split on " OR "; join the repeated
+        # --title values so each is matched as a separate phrase.
         terms = [t.strip() for t in args.title if t.strip()]
         if terms:
             params["title"] = " OR ".join(terms)
@@ -302,8 +297,8 @@ def cmd_search_postings(args):
         params["work_mode"] = ",".join(args.work_mode)
 
     if (args.city or "").strip():
-        # Location wins over country/region in JobPostings::Search, so — like
-        # the MCP tool — we send location_id (+ radius) instead of country.
+        # A city search is a radius search around the resolved location, so we
+        # send the location id (+ radius) instead of country/region.
         params["location_id"] = resolve_location_id(args.city, args.region, country, api_key, api_url)
         if args.radius_km:
             params["radius_km"] = clamp_radius(args.radius_km)
@@ -321,7 +316,7 @@ def cmd_search_postings(args):
     print(json.dumps({"job_postings": postings, "count": len(postings)}, indent=2))
 
 
-def cmd_get_posting(args):
+def cmd_posting_get(args):
     """Fetch one posting's full detail from Nico's index by its id (external_id)."""
     api_key, api_url = get_config()
     posting_id = (args.id or "").strip()
@@ -332,15 +327,15 @@ def cmd_get_posting(args):
         make_request("GET", "/api/job_postings/" + urllib.parse.quote(posting_id, safe=""),
                      api_key, api_url, on_error="return")
     )
-    # Same summary shape as search-postings, plus the detail-only fields.
+    # Same shape as a search result, plus the fields the search list omits:
+    # the external application `url` and the full `description`.
     out = remap_posting(resp)
+    out["url"] = resp.get("url")
     out["description"] = resp.get("description")
-    out["source_attribution"] = resp.get("source_attribution")
-    out["source_provides_date"] = resp.get("source_provides_date")
     print(json.dumps(out, indent=2))
 
 
-def cmd_list(args):
+def cmd_application_list(args):
     """List job applications."""
     api_key, api_url = get_config()
 
@@ -361,70 +356,86 @@ def cmd_list(args):
     print(json.dumps(result, indent=2))
 
 
+def cmd_application_get(args):
+    """Fetch one job application's full detail, with its notes and interviews."""
+    api_key, api_url = get_config()
+    base = "/api/job_applications/" + urllib.parse.quote(args.id, safe="")
+
+    result = make_request("GET", base, api_key, api_url)
+    # Notes and interviews live on nested endpoints; fold them in so one call
+    # returns the complete picture.
+    result["notes"] = make_request("GET", base + "/notes", api_key, api_url)
+    result["interviews"] = make_request("GET", base + "/interviews", api_key, api_url)
+
+    print(json.dumps(result, indent=2))
+
+
+def cmd_application_add_note(args):
+    """Add a note to a job application."""
+    api_key, api_url = get_config()
+
+    result = make_request(
+        "POST",
+        "/api/job_applications/" + urllib.parse.quote(args.id, safe="") + "/notes",
+        api_key,
+        api_url,
+        data={"note": {"body": args.body}}
+    )
+
+    print(json.dumps(result, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Nico Job Agent API Client",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Discover openings in Nico's global index (start here for job search)
-  %(prog)s search-postings --title "backend engineer" --country US --region California
-  %(prog)s search-postings --employers "Anthropic" --country US --work-mode remote
-  %(prog)s search-postings --city "Berlin" --country DE --radius-km 25 --title designer
+Command groups:
+  posting      Job posting search — discover openings in Nico's index
+  application  Job application management — your tracked applications
 
-  # Fetch one posting's full detail (description, etc.) by its id
-  %(prog)s get-posting --id 019e5132-627d-799e-963e-3c24f72a9dd5
+Examples:
+  # Discover openings in Nico's job index (start here for job search)
+  %(prog)s posting search --title "backend engineer" --country US --region California
+  %(prog)s posting search --employers "Anthropic" --country US --work-mode remote
+  %(prog)s posting search --city "Berlin" --country DE --radius-km 25 --title designer
+
+  # Fetch one posting's full detail (application url, description) by its id
+  %(prog)s posting get --id 019e5132-627d-799e-963e-3c24f72a9dd5
 
   # Parse a job URL to extract details
-  %(prog)s parse-url --url "https://company.com/jobs/123"
+  %(prog)s application parse-url --url "https://company.com/jobs/123"
 
-  # Check if a job already exists by URL
-  %(prog)s search --url "https://company.com/jobs/123"
+  # Check if a job already exists in your applications
+  %(prog)s application search --url "https://company.com/jobs/123"
+  %(prog)s application search --company-name "Acme Inc"
 
-  # Search jobs by company name
-  %(prog)s search --company-name "Acme Inc"
-
-  # Create a new proposed job
-  %(prog)s create --title "Software Engineer" --company "Acme Inc" \\
+  # Create a new proposed job application
+  %(prog)s application create --title "Software Engineer" --company "Acme Inc" \\
       --url "https://company.com/jobs/123" --location "Berlin" \\
       --work-mode "remote" --employment-type "full-time"
 
-  # List all proposed jobs
-  %(prog)s list --status draft
+  # List, inspect, and annotate your applications
+  %(prog)s application list --status draft
+  %(prog)s application get --id 019e0000-aaaa-bbbb-cccc-000000000000
+  %(prog)s application add-note --id 019e0000-aaaa-bbbb-cccc-000000000000 --body "Recruiter replied"
         """
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    groups = parser.add_subparsers(dest="namespace", metavar="{posting,application}")
 
-    # parse-url command
-    parse_url_parser = subparsers.add_parser("parse-url", help="Parse a job posting URL")
-    parse_url_parser.add_argument("--url", required=True, help="Job posting URL to parse")
-    parse_url_parser.set_defaults(func=cmd_parse_url)
+    # ------------------------------------------------------------------
+    # posting — job posting search (Nico's index, read-only)
+    # ------------------------------------------------------------------
+    posting = groups.add_parser(
+        "posting",
+        help="Job posting search — discover openings in Nico's index"
+    )
+    posting_cmds = posting.add_subparsers(dest="command", metavar="{search,get}")
 
-    # search command
-    search_parser = subparsers.add_parser("search", help="Search for existing job applications")
-    search_parser.add_argument("--url", help="Search by exact URL")
-    search_parser.add_argument("--company-name", help="Search by company name")
-    search_parser.add_argument("--status", help="Filter by status (draft, applied, etc.)")
-    search_parser.set_defaults(func=cmd_search)
-
-    # create command
-    create_parser = subparsers.add_parser("create", help="Create a new proposed job application")
-    create_parser.add_argument("--title", required=True, help="Job title")
-    create_parser.add_argument("--company", required=True, help="Company name")
-    create_parser.add_argument("--url", help="Job posting URL")
-    create_parser.add_argument("--location", help="Job location")
-    create_parser.add_argument("--work-mode", choices=["remote", "remote-optional", "hybrid", "on-site"],
-                               help="Work mode (default: hybrid)")
-    create_parser.add_argument("--employment-type", choices=["full-time", "part-time", "contract", "internship", "temporary"],
-                               help="Employment type")
-    create_parser.set_defaults(func=cmd_create)
-
-    # search-postings command (global job index — exact parity with the MCP
-    # `search_job_postings` tool)
-    sp = subparsers.add_parser(
-        "search-postings",
-        help="Search Nico's global job postings index to discover openings"
+    sp = posting_cmds.add_parser(
+        "search",
+        help="Search Nico's job postings index to discover openings"
     )
     sp.add_argument("--title", action="append", metavar="PHRASE",
                     help="Title phrase, case-insensitive substring; repeat to OR several "
@@ -439,26 +450,69 @@ Examples:
     sp.add_argument("--work-mode", action="append", choices=["remote", "onsite"],
                     help="Filter by work mode; repeat for several (remote, onsite).")
     sp.add_argument("--limit", type=int, default=20, help="Max results (default 20, max 100).")
-    sp.set_defaults(func=cmd_search_postings)
+    sp.set_defaults(func=cmd_posting_search)
 
-    # get-posting command (full detail for one posting by id)
-    gp = subparsers.add_parser(
-        "get-posting",
-        help="Fetch one posting's full detail (incl. description) by its id"
+    gp = posting_cmds.add_parser(
+        "get",
+        help="Fetch one posting's full detail (application url, description) by its id"
     )
-    gp.add_argument("--id", required=True, help="Posting id (the `id` from search-postings results)")
-    gp.set_defaults(func=cmd_get_posting)
+    gp.add_argument("--id", required=True, help="Posting id (the `id` from posting search results)")
+    gp.set_defaults(func=cmd_posting_get)
 
-    # list command
-    list_parser = subparsers.add_parser("list", help="List job applications")
-    list_parser.add_argument("--status", help="Filter by status group (draft, applied, interviewing, offer, finished, active)")
-    list_parser.add_argument("--per-page", type=int, default=25, help="Items per page (default: 25)")
-    list_parser.set_defaults(func=cmd_list)
+    # ------------------------------------------------------------------
+    # application — job application management (your tracked applications)
+    # ------------------------------------------------------------------
+    application = groups.add_parser(
+        "application",
+        help="Job application management — your tracked applications"
+    )
+    app_cmds = application.add_subparsers(
+        dest="command", metavar="{search,list,get,create,add-note,parse-url}"
+    )
+
+    asearch = app_cmds.add_parser("search", help="Search your job applications (duplicate check by URL or company)")
+    asearch.add_argument("--url", help="Search by exact URL")
+    asearch.add_argument("--company-name", help="Search by company name")
+    asearch.add_argument("--status", help="Filter by status (draft, applied, etc.)")
+    asearch.set_defaults(func=cmd_application_search)
+
+    alist = app_cmds.add_parser("list", help="List your job applications")
+    alist.add_argument("--status", help="Filter by status group (draft, applied, interviewing, offer, finished, active)")
+    alist.add_argument("--per-page", type=int, default=25, help="Items per page (default: 25)")
+    alist.set_defaults(func=cmd_application_list)
+
+    aget = app_cmds.add_parser("get", help="Fetch one application's full detail (notes, interviews)")
+    aget.add_argument("--id", required=True, help="Job application id")
+    aget.set_defaults(func=cmd_application_get)
+
+    acreate = app_cmds.add_parser("create", help="Create a new proposed job application (requires owner approval)")
+    acreate.add_argument("--title", required=True, help="Job title")
+    acreate.add_argument("--company", required=True, help="Company name")
+    acreate.add_argument("--url", help="Job posting URL")
+    acreate.add_argument("--location", help="Job location")
+    acreate.add_argument("--work-mode", choices=["remote", "remote-optional", "hybrid", "on-site"],
+                         help="Work mode (default: hybrid)")
+    acreate.add_argument("--employment-type", choices=["full-time", "part-time", "contract", "internship", "temporary"],
+                         help="Employment type")
+    acreate.set_defaults(func=cmd_application_create)
+
+    anote = app_cmds.add_parser("add-note", help="Add a note to a job application")
+    anote.add_argument("--id", required=True, help="Job application id")
+    anote.add_argument("--body", required=True, help="Note text (max 10000 characters)")
+    anote.set_defaults(func=cmd_application_add_note)
+
+    aparse = app_cmds.add_parser("parse-url", help="Parse a job posting URL to prefill an application")
+    aparse.add_argument("--url", required=True, help="Job posting URL to parse")
+    aparse.set_defaults(func=cmd_application_parse_url)
 
     args = parser.parse_args()
 
-    if not args.command:
+    if not getattr(args, "namespace", None):
         parser.print_help()
+        sys.exit(1)
+    if not getattr(args, "func", None):
+        # A namespace without a command — show that group's help.
+        (posting if args.namespace == "posting" else application).print_help()
         sys.exit(1)
 
     args.func(args)

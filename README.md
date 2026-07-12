@@ -1,6 +1,6 @@
 # Nico Job Agent Skills
 
-AI agent skill for searching Nico Job Agent's global job index and adding job postings as proposed jobs to [Nico Job Agent](https://nico-jobagent.com) via its API.
+AI agent skill for searching Nico Job Agent's job index and adding job postings as proposed jobs to [Nico Job Agent](https://nico-jobagent.com) via its API.
 
 ## Contents
 
@@ -11,11 +11,8 @@ AI agent skill for searching Nico Job Agent's global job index and adding job po
   - [Manual Installation](#manual-installation)
   - [Configuration](#configuration)
 - [CLI Manual](#cli-manual)
-  - [Search Nico's global job index](#search-nicos-global-job-index-discover-openings)
-  - [Parse a job URL](#parse-a-job-url)
-  - [Check for duplicates](#check-for-duplicates)
-  - [Create a proposed job](#create-a-proposed-job)
-  - [List jobs](#list-jobs)
+  - [`posting` — job posting search](#posting--job-posting-search)
+  - [`application` — job application management](#application--job-application-management)
 - [License](#license)
 
 ## Compatible Agents
@@ -127,58 +124,63 @@ Add to your shell profile or agent's environment settings.
 ## CLI Manual
 
 The skill uses `scripts/nico_client.py`, a zero-dependency Python CLI. All commands
-print JSON to stdout. Run `python3 scripts/nico_client.py --help` for the full command list.
+print JSON to stdout. Commands come in two groups:
 
-### Search Nico's global job index (discover openings)
+| Group | Purpose |
+|---|---|
+| `posting` | **Job posting search** — discover openings in Nico's index (read-only) |
+| `application` | **Job application management** — your tracked applications |
+
+Run `python3 scripts/nico_client.py --help` for the full command list.
+
+### `posting` — job posting search
 
 ```bash
-# In a specific state
-python3 scripts/nico_client.py search-postings --title "backend engineer" --country US --region California
+# Search — in a specific state
+python3 scripts/nico_client.py posting search --title "backend engineer" --country US --region California
 
-# Remote roles (don't pair --region with --work-mode remote — remote postings
-# aren't pinned to a state, so that combination returns nothing)
-python3 scripts/nico_client.py search-postings --title "backend engineer" --country US --work-mode remote
+# Search — remote roles (don't pair --region with --work-mode remote — remote
+# postings aren't pinned to a state, so that combination returns nothing)
+python3 scripts/nico_client.py posting search --title "backend engineer" --country US --work-mode remote
+
+# Get one posting's full detail (application url + description) by id
+python3 scripts/nico_client.py posting get --id "019e5132-627d-799e-963e-3c24f72a9dd5"
 ```
 
-Accepts employer/city **names** (resolved for you) — exact parity with Nico's MCP
-`search_job_postings` tool. `--country` is required. Requires job search enabled for the account.
+`posting search` accepts employer/city **names** (resolved for you); `--country` is required;
+results are compact (no url/description — that's what `posting get` is for).
+Requires job search enabled for the account.
 
-### Parse a job URL
-
-```bash
-python3 scripts/nico_client.py parse-url --url "https://company.com/jobs/123"
-```
-
-### Check for duplicates
+### `application` — job application management
 
 ```bash
-# By URL
-python3 scripts/nico_client.py search --url "https://company.com/jobs/123"
+# Check for duplicates (by URL or company name)
+python3 scripts/nico_client.py application search --url "https://company.com/jobs/123"
+python3 scripts/nico_client.py application search --company-name "Acme Inc"
 
-# By company name
-python3 scripts/nico_client.py search --company-name "Acme Inc"
-```
+# List your applications
+python3 scripts/nico_client.py application list --status draft
 
-### Create a proposed job
+# Fetch one application's full detail (incl. notes and interviews)
+python3 scripts/nico_client.py application get --id "<application_id>"
 
-```bash
-python3 scripts/nico_client.py create \
+# Parse a job URL to extract details
+python3 scripts/nico_client.py application parse-url --url "https://company.com/jobs/123"
+
+# Create a proposed application
+python3 scripts/nico_client.py application create \
   --title "Software Engineer" \
   --company "Acme Inc" \
   --url "https://company.com/jobs/123" \
   --location "Berlin, Germany" \
   --work-mode "remote"
+
+# Add a note
+python3 scripts/nico_client.py application add-note --id "<application_id>" --body "Recruiter replied"
 ```
 
-Work modes: `remote`, `remote-optional`, `hybrid`, `on-site`
-
-### List jobs
-
-```bash
-python3 scripts/nico_client.py list --status draft
-```
-
-Status filters: `draft`, `applied`, `interviewing`, `offer`, `finished`, `active`
+Work modes (create): `remote`, `remote-optional`, `hybrid`, `on-site`.
+Status filters (list): `draft`, `applied`, `interviewing`, `offer`, `finished`, `active`.
 
 ## License
 
