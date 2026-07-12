@@ -25,9 +25,10 @@ if [ -z "$api_key" ]; then
     exit 1
 fi
 
-# Prompt for API URL
-read -rp "Enter your NICO_API_URL [https://staging.nico-jobagent.com]: " api_url
-api_url="${api_url:-https://staging.nico-jobagent.com}"
+# Prompt for API URL. Accept a bare host (no scheme needed); the client
+# prepends https:// automatically.
+read -rp "Enter your NICO_API_URL [api.nico-jobagent.com]: " api_url
+api_url="${api_url:-api.nico-jobagent.com}"
 
 # Detect installed agents
 echo ""
@@ -107,19 +108,47 @@ echo ""
 echo "Environment Configuration"
 echo "========================="
 
-# Detect shell profile
-if [ -f "$HOME/.zshrc" ]; then
-    shell_profile="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-    shell_profile="$HOME/.bashrc"
-elif [ -f "$HOME/.bash_profile" ]; then
-    shell_profile="$HOME/.bash_profile"
-else
-    shell_profile=""
-fi
+# Detect the shell profile to edit. Key off the shell the user actually runs —
+# NOT just which rc file exists: macOS ships ~/.zshrc even for bash users, so a
+# naive "does ~/.zshrc exist?" check writes to a profile bash never sources.
+# Prefer the shell that invoked this script (parent process), fall back to $SHELL.
+parent_shell="$(ps -p "$PPID" -o comm= 2>/dev/null | sed 's|.*/||; s|^-||')"
+shell_name="$(basename "${parent_shell:-${SHELL:-}}")"
+
+case "$shell_name" in
+    zsh)
+        shell_profile="$HOME/.zshrc"
+        ;;
+    bash)
+        # macOS Terminal launches bash as a LOGIN shell, which sources
+        # .bash_profile (not .bashrc); Linux interactive bash uses .bashrc.
+        if [ -f "$HOME/.bash_profile" ]; then
+            shell_profile="$HOME/.bash_profile"
+        elif [ -f "$HOME/.bashrc" ]; then
+            shell_profile="$HOME/.bashrc"
+        elif [ "$(uname)" = "Darwin" ]; then
+            shell_profile="$HOME/.bash_profile"
+        else
+            shell_profile="$HOME/.bashrc"
+        fi
+        ;;
+    *)
+        # Unknown shell — fall back to whichever common profile exists.
+        if [ -f "$HOME/.zshrc" ]; then
+            shell_profile="$HOME/.zshrc"
+        elif [ -f "$HOME/.bashrc" ]; then
+            shell_profile="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            shell_profile="$HOME/.bash_profile"
+        else
+            shell_profile=""
+        fi
+        ;;
+esac
 
 if [ -n "$shell_profile" ]; then
     echo ""
+    [ -n "$shell_name" ] && echo "Detected shell: $shell_name"
     read -rp "Add NICO_API_KEY and NICO_API_URL to $shell_profile? [Y/n] " yn
     if [[ "$yn" != "n" && "$yn" != "N" ]]; then
         # Remove existing entries to avoid duplicates

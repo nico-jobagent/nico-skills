@@ -16,7 +16,7 @@ This skill integrates with the Nico Job Agent API to:
 
 Set these environment variables:
 - `NICO_API_KEY`: Your Nico API key (required)
-- `NICO_API_URL`: Nico API base URL (default: `https://api.nico-jobagent.com`)
+- `NICO_API_URL`: Nico API base URL, scheme optional (default: `api.nico-jobagent.com`)
 
 ## Workflow
 

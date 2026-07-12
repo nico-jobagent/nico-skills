@@ -1,6 +1,22 @@
 # Nico Job Agent Skills
 
-AI agent skill for adding job postings as proposed jobs to [Nico Job Agent](https://nico-jobagent.com) via its API.
+AI agent skill for searching Nico Job Agent's global job index and adding job postings as proposed jobs to [Nico Job Agent](https://nico-jobagent.com) via its API.
+
+## Contents
+
+- [Compatible Agents](#compatible-agents)
+- [Installation](#installation)
+  - [Prerequisites](#prerequisites)
+  - [Quick Setup](#quick-setup)
+  - [Manual Installation](#manual-installation)
+  - [Configuration](#configuration)
+- [CLI Manual](#cli-manual)
+  - [Search Nico's global job index](#search-nicos-global-job-index-discover-openings)
+  - [Parse a job URL](#parse-a-job-url)
+  - [Check for duplicates](#check-for-duplicates)
+  - [Create a proposed job](#create-a-proposed-job)
+  - [List jobs](#list-jobs)
+- [License](#license)
 
 ## Compatible Agents
 
@@ -12,12 +28,14 @@ Works with any agent that supports skills via `SKILL.md`:
 - **GitHub Copilot**
 - Any agent that can read `SKILL.md` and run shell commands
 
-## Prerequisites
+## Installation
+
+### Prerequisites
 
 - **python3** (uses only stdlib — no pip install needed)
 - A **Nico API key** (`NICO_API_KEY`)
 
-## Quick Setup
+### Quick Setup
 
 ```bash
 git clone https://github.com/nico-jobagent/nico-skills.git
@@ -38,9 +56,9 @@ After setup, reload your shell config:
 source ~/.zshrc  # or ~/.bashrc
 ```
 
-## Manual Installation
+### Manual Installation
 
-### Claude Code
+#### Claude Code
 
 **Option A — Plugin mode** (recommended):
 ```bash
@@ -52,7 +70,7 @@ claude --plugin-dir /path/to/nico-skills
 ln -s /path/to/nico-skills/skills/nico-jobagent ~/.claude/skills/nico-jobagent
 ```
 
-### OpenClaw
+#### OpenClaw
 
 ```bash
 ln -s /path/to/nico-skills/skills/nico-jobagent ~/.openclaw/skills/nico-jobagent
@@ -69,7 +87,7 @@ Or configure in `~/.openclaw/openclaw.json`:
 }
 ```
 
-### Cursor
+#### Cursor
 
 **Option A — Remote rule**: Settings > Rules > Add Rule > Remote Rule (GitHub) > enter repo URL
 
@@ -78,7 +96,7 @@ Or configure in `~/.openclaw/openclaw.json`:
 ln -s /path/to/nico-skills/skills/nico-jobagent ~/.cursor/skills/nico-jobagent
 ```
 
-### GitHub Copilot
+#### GitHub Copilot
 
 ```bash
 ln -s /path/to/nico-skills/skills/nico-jobagent ~/.copilot/skills/nico-jobagent
@@ -89,26 +107,27 @@ Or copy into your repo:
 cp -r /path/to/nico-skills/skills/nico-jobagent .github/skills/nico-jobagent
 ```
 
-### Any Other Agent
+#### Any Other Agent
 
 Point your agent at:
 - **Instructions**: `skills/nico-jobagent/SKILL.md`
 - **CLI tool**: `skills/nico-jobagent/scripts/nico_client.py`
 
-## Configuration
+### Configuration
 
 Set these environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `NICO_API_KEY` | Yes | — | Your Nico API authentication key |
-| `NICO_API_URL` | No | `https://staging.nico-jobagent.com` | Nico API base URL |
+| `NICO_API_URL` | No | `api.nico-jobagent.com` | Nico API base URL (scheme optional — `https://` is added if omitted) |
 
 Add to your shell profile or agent's environment settings.
 
-## CLI Reference
+## CLI Manual
 
-The skill uses `scripts/nico_client.py`, a zero-dependency Python CLI:
+The skill uses `scripts/nico_client.py`, a zero-dependency Python CLI. All commands
+print JSON to stdout. Run `python3 scripts/nico_client.py --help` for the full command list.
 
 ### Search Nico's global job index (discover openings)
 
