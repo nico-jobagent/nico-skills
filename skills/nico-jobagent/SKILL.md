@@ -66,11 +66,14 @@ python3 scripts/nico_client.py posting search --employers "Anthropic" --country 
 python3 scripts/nico_client.py posting search --city "Berlin" --country DE --radius-km 25 --title designer
 ```
 
-Returns (compact — no `url`/`description`; use `posting get` for those):
+Returns (compact — no `url`/`description`; use `posting get` for those). The `pagination`
+block tells you whether more pages exist — pass `--page N` to walk them:
 ```json
 {"job_postings": [{"id": "...", "title": "...", "company_name": "...", "location": "...",
                    "work_mode": "...", "employment_type": "...", "salary_min": null,
-                   "posted_at": "...", "effective_posted_at": "..."}], "count": 12}
+                   "posted_at": "...", "effective_posted_at": "..."}],
+ "count": 20,
+ "pagination": {"current_page": 1, "total_pages": 5, "total_count": 99, "per_page": 20}}
 ```
 
 Options:
@@ -81,7 +84,8 @@ Options:
 - `--city NAME` — city for radius search (resolved against Nico's geocoded index)
 - `--radius-km N` — radius around `--city` (default 25, max 250)
 - `--work-mode {remote,onsite}` — repeat for several
-- `--limit N` — max results (default 20, max 100)
+- `--limit N` — results per page (default 20, max 100)
+- `--page N` — page number (default 1); check `pagination.total_pages` in the output
 
 > **Don't combine `--region`/`--city` with `--work-mode remote`.** Remote postings
 > aren't pinned to a location, so a geographic filter + `remote` almost always returns
@@ -127,9 +131,11 @@ or
 
 ```bash
 python3 scripts/nico_client.py application list --status draft
+python3 scripts/nico_client.py application list --per-page 25 --page 2
 ```
 
-Status groups: `draft`, `applied`, `interviewing`, `offer`, `finished`, `active`
+Status groups: `draft`, `applied`, `interviewing`, `offer`, `finished`, `active`.
+Paged — the response's `pagination` block carries `total_pages`.
 
 ### application get
 

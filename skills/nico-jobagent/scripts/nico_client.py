@@ -308,12 +308,19 @@ def cmd_posting_search(args):
             params["region"] = args.region.strip()
 
     params["per_page"] = resolve_limit(args.limit)
+    params["page"] = max(int(args.page or 1), 1)
 
     resp = _unwrap_or_fail(
         make_request("GET", "/api/job_postings", api_key, api_url, params=params, on_error="return")
     )
     postings = [remap_posting(p) for p in resp.get("job_postings", [])]
-    print(json.dumps({"job_postings": postings, "count": len(postings)}, indent=2))
+    print(json.dumps({
+        "job_postings": postings,
+        "count": len(postings),
+        # current_page / total_pages / total_count / per_page — use these to
+        # walk further pages with --page.
+        "pagination": resp.get("pagination"),
+    }, indent=2))
 
 
 def cmd_posting_get(args):
@@ -344,6 +351,8 @@ def cmd_application_list(args):
         params["filter"] = args.status
     if args.per_page:
         params["per_page"] = args.per_page
+    if args.page and args.page > 1:
+        params["page"] = args.page
 
     result = make_request(
         "GET",
@@ -449,7 +458,9 @@ Examples:
     sp.add_argument("--radius-km", type=int, help="Radius in km around --city (default 25, max 250).")
     sp.add_argument("--work-mode", action="append", choices=["remote", "onsite"],
                     help="Filter by work mode; repeat for several (remote, onsite).")
-    sp.add_argument("--limit", type=int, default=20, help="Max results (default 20, max 100).")
+    sp.add_argument("--limit", type=int, default=20, help="Results per page (default 20, max 100).")
+    sp.add_argument("--page", type=int, default=1,
+                    help="Page number (default 1); the output's `pagination` block shows total_pages.")
     sp.set_defaults(func=cmd_posting_search)
 
     gp = posting_cmds.add_parser(
@@ -479,6 +490,7 @@ Examples:
     alist = app_cmds.add_parser("list", help="List your job applications")
     alist.add_argument("--status", help="Filter by status group (draft, applied, interviewing, offer, finished, active)")
     alist.add_argument("--per-page", type=int, default=25, help="Items per page (default: 25)")
+    alist.add_argument("--page", type=int, default=1, help="Page number (default 1)")
     alist.set_defaults(func=cmd_application_list)
 
     aget = app_cmds.add_parser("get", help="Fetch one application's full detail (notes, interviews)")

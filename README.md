@@ -148,7 +148,8 @@ python3 scripts/nico_client.py posting get --id "019e5132-627d-799e-963e-3c24f72
 ```
 
 `posting search` accepts employer/city **names** (resolved for you); `--country` is required;
-results are compact (no url/description — that's what `posting get` is for).
+results are compact (no url/description — that's what `posting get` is for) and **paged**
+(`--limit` per page, `--page N`; the output's `pagination` block shows `total_pages`).
 Requires job search enabled for the account.
 
 ### `application` — job application management
@@ -158,8 +159,8 @@ Requires job search enabled for the account.
 python3 scripts/nico_client.py application search --url "https://company.com/jobs/123"
 python3 scripts/nico_client.py application search --company-name "Acme Inc"
 
-# List your applications
-python3 scripts/nico_client.py application list --status draft
+# List your applications (paged)
+python3 scripts/nico_client.py application list --status draft --per-page 25 --page 2
 
 # Fetch one application's full detail (incl. notes and interviews)
 python3 scripts/nico_client.py application get --id "<application_id>"
