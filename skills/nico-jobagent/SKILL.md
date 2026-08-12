@@ -33,11 +33,15 @@ kept fresh. Only fall back to external job boards for gaps.
    `python3 scripts/nico_client.py posting search --title "<phrase>" --country <CC> [--region <name> | --city <name> | --work-mode remote]`
    Each result carries `id`, `company_name`, `location`, `work_mode`, salary, and dates
    (the search list is compact — it does NOT include the application `url` or description).
+   Each result also carries `job_application` — **skip any result where it is not `null`**,
+   the user has already handled that job (see below).
    To get the application `url` and full `description` for a result, fetch it by id:
    `python3 scripts/nico_client.py posting get --id "<id>"`
 2. **(Optional) Fill gaps from external job boards** for roles not yet in Nico.
 3. **For each job URL you want to add as a proposal:**
-   - Check if it already exists: `python3 scripts/nico_client.py application search --url "<job_url>"`
+   - If it came from `posting search`, its `job_application` field already told you whether
+     it is tracked — no duplicate check needed. For a URL from an external board (step 2),
+     check first: `python3 scripts/nico_client.py application search --url "<job_url>"`
    - If exists (`"exists": true`), skip it
    - If not exists, parse the URL: `python3 scripts/nico_client.py application parse-url --url "<job_url>"`
    - Create the job: `python3 scripts/nico_client.py application create --title "<title>" --company "<company>" --url "<url>" --location "<location>" --work-mode "<work_mode>"`
@@ -71,10 +75,16 @@ block tells you whether more pages exist — pass `--page N` to walk them:
 ```json
 {"job_postings": [{"id": "...", "title": "...", "company_name": "...", "location": "...",
                    "work_mode": "...", "employment_type": "...", "salary_min": null,
-                   "posted_at": "...", "effective_posted_at": "..."}],
+                   "posted_at": "...", "effective_posted_at": "...",
+                   "job_application": null}],
  "count": 20,
  "pagination": {"current_page": 1, "total_pages": 5, "total_count": 99, "per_page": 20}}
 ```
+
+`job_application` is `null` unless the user already has an application for that posting,
+in which case it is `{"id": "...", "status": "applied"}` — use it to skip jobs they have
+already handled, and pass the id to `application get`. A `proposed`/`draft` status means
+the job is only saved, not applied for.
 
 Options:
 - `--title PHRASE` — case-insensitive substring; repeat to OR several
@@ -103,9 +113,9 @@ Fetch one posting (including its full `description`) by the `id` returned from `
 python3 scripts/nico_client.py posting get --id "019e5132-627d-799e-963e-3c24f72a9dd5"
 ```
 
-Returns the same fields as a search result **plus the application `url` and the full
-`description`** (both omitted from the compact search list). Returns
-`{"error": "Job posting not found"}` for an unknown id.
+Returns the same fields as a search result — including the `job_application` marker —
+**plus the application `url` and the full `description`** (both omitted from the compact
+search list). Returns `{"error": "Job posting not found"}` for an unknown id.
 
 ## Commands — `application` (job application management)
 

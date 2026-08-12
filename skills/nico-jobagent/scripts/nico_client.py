@@ -269,6 +269,10 @@ def remap_posting(posting):
         "salary_period": posting.get("salary_period"),
         "posted_at": posting.get("posted_at"),
         "effective_posted_at": posting.get("effective_posted_at"),
+        # None unless the user already has an application for this posting,
+        # in which case it carries that application's id and status — lets an
+        # agent skip jobs the user has already handled.
+        "job_application": posting.get("job_application"),
     }
 
 
