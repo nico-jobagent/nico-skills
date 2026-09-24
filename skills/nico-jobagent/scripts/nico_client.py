@@ -244,17 +244,17 @@ def clamp_radius(raw):
 
 
 def resolve_limit(raw):
-    """Default 20, max 100."""
+    """Default 25 (matches the API's own default), max 100."""
     requested = int(raw or 0)
     if requested <= 0:
-        requested = 20
+        requested = 25
     return min(requested, 100)
 
 
 def remap_posting(posting):
     """Normalize a search result row into this client's output shape."""
     employer = posting.get("employer") or {}
-    return {
+    out = {
         # The API returns a posting's identifier under the key "id".
         "id": posting.get("id"),
         "title": posting.get("title"),
@@ -274,6 +274,10 @@ def remap_posting(posting):
         # agent skip jobs the user has already handled.
         "job_application": posting.get("job_application"),
     }
+    # Present only under sort=match — the blended fit the order came from.
+    if "match_debug" in posting:
+        out["match_debug"] = posting["match_debug"]
+    return out
 
 
 def cmd_posting_search(args):
@@ -293,12 +297,26 @@ def cmd_posting_search(args):
         terms = [t.strip() for t in args.title if t.strip()]
         if terms:
             params["title"] = " OR ".join(terms)
+    if args.title_exact:
+        params["title_exact"] = "1"
+    if args.title_levels:
+        params["title_levels"] = args.title_levels
     if args.employers:
         ids = resolve_employer_ids(args.employers, api_key, api_url)
         if ids:
             params["employer_ids"] = ",".join(ids)
+    if args.brands:
+        brands = [b.strip() for b in args.brands if b.strip()]
+        if brands:
+            params["brands"] = ",".join(brands)
     if args.work_mode:
         params["work_mode"] = ",".join(args.work_mode)
+    if args.posted_within_days:
+        params["posted_within_days"] = args.posted_within_days
+    if args.sort:
+        params["sort"] = args.sort
+    if args.profile_id:
+        params["profile_id"] = args.profile_id
 
     if (args.city or "").strip():
         # A city search is a radius search around the resolved location, so we
@@ -411,6 +429,8 @@ Examples:
   # Discover openings in Nico's job index (start here for job search)
   %(prog)s posting search --title "backend engineer" --country US --region California
   %(prog)s posting search --employers "Anthropic" --country US --work-mode remote
+  %(prog)s posting search --brands "Old Navy" --country US --posted-within-days 7
+  %(prog)s posting search --title "engineer" --country US --sort match
   %(prog)s posting search --city "Berlin" --country DE --radius-km 25 --title designer
 
   # Fetch one posting's full detail (application url, description) by its id
@@ -453,8 +473,16 @@ Examples:
     sp.add_argument("--title", action="append", metavar="PHRASE",
                     help="Title phrase, case-insensitive substring; repeat to OR several "
                          "(e.g. --title 'backend engineer' --title 'staff engineer')")
+    sp.add_argument("--title-exact", action="store_true",
+                    help="Keep title phrases literal — no canonical title widening.")
+    sp.add_argument("--title-levels", type=int, choices=[0, 1],
+                    help="How far a leveled title phrase widens up/down the seniority ladder "
+                         "(0 default: same level only, 1: one level either way).")
     sp.add_argument("--employers", action="append", metavar="NAME",
                     help="Employer name; repeat for several. Each must resolve to exactly one employer.")
+    sp.add_argument("--brands", action="append", metavar="NAME",
+                    help="Brand name (exact match), for multi-brand operators — e.g. 'Old Navy' to search "
+                         "just that brand under Gap Inc. Repeat for several.")
     sp.add_argument("--country", metavar="CC",
                     help="ISO 3166-1 alpha-2 country code (required). e.g. US, NL, FR")
     sp.add_argument("--region", help="State/province name. Required with --city when --country is US or CA.")
@@ -462,7 +490,14 @@ Examples:
     sp.add_argument("--radius-km", type=int, help="Radius in km around --city (default 25, max 250).")
     sp.add_argument("--work-mode", action="append", choices=["remote", "onsite"],
                     help="Filter by work mode; repeat for several (remote, onsite).")
-    sp.add_argument("--limit", type=int, default=20, help="Results per page (default 20, max 100).")
+    sp.add_argument("--posted-within-days", type=int,
+                    help="Only postings whose effective posting date is within the last N days (max 365).")
+    sp.add_argument("--sort", choices=["newest", "match"],
+                    help="newest (default) sorts by recency. match (early access, allowlisted accounts) "
+                         "ranks by fit against your candidate profile.")
+    sp.add_argument("--profile-id", metavar="ID",
+                    help="Candidate profile id to rank against with --sort match (default: your default profile).")
+    sp.add_argument("--limit", type=int, default=25, help="Results per page (default 25, max 100).")
     sp.add_argument("--page", type=int, default=1,
                     help="Page number (default 1); the output's `pagination` block shows total_pages.")
     sp.set_defaults(func=cmd_posting_search)
